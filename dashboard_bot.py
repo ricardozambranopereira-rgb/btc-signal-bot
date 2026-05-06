@@ -226,21 +226,29 @@ def analyze():
     raw_signal = "WAIT"
     entry_type = "NONE"
 
-    if bool(last["bullish_trend_signal"]):
-        raw_signal = "BUY"
+   
+signal = "WAIT"
+entry_type = "NONE"
+
+
+
+for idx, row in recent.iterrows():
+    if bool(row["bullish_trend_signal"]):
+        signal = "BUY"
         entry_type = "ZERO LAG TREND BUY"
-
-    elif bool(last["bearish_trend_signal"]):
-        raw_signal = "SELL"
+        event_time = int(row["close_time"])
+    elif bool(row["bearish_trend_signal"]):
+        signal = "SELL"
         entry_type = "ZERO LAG TREND SELL"
-
-    elif bool(last["bullish_entry_signal"]):
-        raw_signal = "BUY"
+        event_time = int(row["close_time"])
+    elif bool(row["bullish_entry_signal"]):
+        signal = "BUY"
         entry_type = "ZERO LAG ENTRY BUY"
-
-    elif bool(last["bearish_entry_signal"]):
-        raw_signal = "SELL"
+        event_time = int(row["close_time"])
+    elif bool(row["bearish_entry_signal"]):
+        signal = "SELL"
         entry_type = "ZERO LAG ENTRY SELL"
+        event_time = int(row["close_time"])
 
     # Si no hay evento nuevo, muestra estado de tendencia
     display_signal = raw_signal
