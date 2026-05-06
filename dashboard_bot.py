@@ -57,6 +57,7 @@ data_actual = {
     "tp3": "-",
     "score": 50,
     "updated": "-",
+    "error": "",
     "prices": [],
     "zlema_series": [],
     "upper_series": [],
@@ -65,23 +66,52 @@ data_actual = {
 }
 
 
-def safe_request_json(url, params=None, timeout=15, retries=4, sleep_seconds=2):
+def safe_request_json(url, params=None, timeout=20, retries=4, sleep_seconds=2):
     last_error = None
+    headers = {
+        "User-Agent": "Mozilla/5.0 btc-zero-lag-bot",
+        "Accept": "application/json",
+    }
+
     for _ in range(retries):
         try:
-            response = requests.get(url, params=params, timeout=timeout)
+            response = requests.get(url, params=params, timeout=timeout, headers=headers)
             response.raise_for_status()
             return response.json()
         except Exception as e:
             last_error = e
             time.sleep(sleep_seconds)
+
     raise RuntimeError(f"Request failed after retries: {last_error}")
 
 
 def get_klines(symbol=SYMBOL, interval=INTERVAL, limit=LIMIT):
-    url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
-    raw = safe_request_json(url, params=params)
+
+    # Render a veces falla con api.binance.com. Por eso se prueban
+    # endpoints alternativos oficiales de Binance.
+    base_urls = [
+        "https://api.binance.com",
+        "https://api1.binance.com",
+        "https://api2.binance.com",
+        "https://api3.binance.com",
+        "https://api4.binance.com",
+    ]
+
+    last_error = None
+    raw = None
+
+    for base in base_urls:
+        try:
+            url = f"{base}/api/v3/klines"
+            raw = safe_request_json(url, params=params)
+            break
+        except Exception as e:
+            last_error = e
+            print(f"Error Binance endpoint {base}:", e)
+
+    if raw is None:
+        raise RuntimeError(f"No se pudo obtener data de Binance: {last_error}")
 
     df = pd.DataFrame(raw, columns=[
         "open_time", "open", "high", "low", "close", "volume",
@@ -305,6 +335,7 @@ def analyze():
         "tp3": round(tp3, 2) if tp3 != "-" else "-",
         "score": score,
         "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "error": "",
         "prices": [round(x, 2) for x in tail["close"].tolist()],
         "zlema_series": [round(x, 2) if pd.notna(x) else None for x in tail["zlema"].tolist()],
         "upper_series": [round(x, 2) if pd.notna(x) else None for x in tail["upper"].tolist()],
@@ -361,7 +392,10 @@ Fecha/Hora:
                     last_sent_signal = event_key
 
         except Exception as e:
-            print("Error update_signal:", e)
+            err = str(e)
+            print("Error update_signal:", err)
+            data_actual["error"] = err
+            data_actual["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         time.sleep(CHECK_EVERY_SECONDS)
 
@@ -409,6 +443,17 @@ def home():
 @app.route("/api")
 def api():
     return jsonify(data_actual)
+
+
+@app.route("/health")
+def health():
+    return jsonify({
+        "ok": True,
+        "updated": data_actual.get("updated"),
+        "error": data_actual.get("error", ""),
+        "price": data_actual.get("price"),
+        "signal": data_actual.get("signal"),
+    })
 
 
 def run_bot():
