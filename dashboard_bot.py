@@ -80,24 +80,29 @@ def safe_request_json(url, params=None, timeout=15, retries=4, sleep_seconds=2):
 
 
 def get_klines(symbol=SYMBOL, interval=INTERVAL, limit=LIMIT):
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
 
-    # Render recibio 451 en Binance Spot.
-    # Esta version usa Binance Futures USDT-M.
-    urls = [
-        "https://fapi.binance.com/fapi/v1/klines",
+    # Render estaba recibiendo error 451 usando Binance Spot.
+    # Esta version usa SOLO Binance Futures USDT-M.
+    base_urls = [
+        "https://fapi.binance.com"
     ]
 
     last_error = None
     raw = None
 
-    for url in urls:
+    for base in base_urls:
         try:
+            url = f"{base}/fapi/v1/klines"
             raw = safe_request_json(url, params=params)
             break
         except Exception as e:
             last_error = e
-            print(f"Error Binance endpoint {url}:", e)
+            print(f"Error Binance Futures endpoint {base}:", e)
 
     if raw is None:
         raise RuntimeError(f"No se pudo obtener data de Binance Futures: {last_error}")
