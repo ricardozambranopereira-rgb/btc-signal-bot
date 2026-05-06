@@ -66,52 +66,41 @@ data_actual = {
 }
 
 
-def safe_request_json(url, params=None, timeout=20, retries=4, sleep_seconds=2):
+def safe_request_json(url, params=None, timeout=15, retries=4, sleep_seconds=2):
     last_error = None
-    headers = {
-        "User-Agent": "Mozilla/5.0 btc-zero-lag-bot",
-        "Accept": "application/json",
-    }
-
     for _ in range(retries):
         try:
-            response = requests.get(url, params=params, timeout=timeout, headers=headers)
+            response = requests.get(url, params=params, timeout=timeout)
             response.raise_for_status()
             return response.json()
         except Exception as e:
             last_error = e
             time.sleep(sleep_seconds)
-
     raise RuntimeError(f"Request failed after retries: {last_error}")
 
 
 def get_klines(symbol=SYMBOL, interval=INTERVAL, limit=LIMIT):
     params = {"symbol": symbol, "interval": interval, "limit": limit}
 
-    # Render a veces falla con api.binance.com. Por eso se prueban
-    # endpoints alternativos oficiales de Binance.
-    base_urls = [
-        "https://api.binance.com",
-        "https://api1.binance.com",
-        "https://api2.binance.com",
-        "https://api3.binance.com",
-        "https://api4.binance.com",
+    # Render recibio 451 en Binance Spot.
+    # Esta version usa Binance Futures USDT-M.
+    urls = [
+        "https://fapi.binance.com/fapi/v1/klines",
     ]
 
     last_error = None
     raw = None
 
-    for base in base_urls:
+    for url in urls:
         try:
-            url = f"{base}/api/v3/klines"
             raw = safe_request_json(url, params=params)
             break
         except Exception as e:
             last_error = e
-            print(f"Error Binance endpoint {base}:", e)
+            print(f"Error Binance endpoint {url}:", e)
 
     if raw is None:
-        raise RuntimeError(f"No se pudo obtener data de Binance: {last_error}")
+        raise RuntimeError(f"No se pudo obtener data de Binance Futures: {last_error}")
 
     df = pd.DataFrame(raw, columns=[
         "open_time", "open", "high", "low", "close", "volume",
@@ -123,7 +112,6 @@ def get_klines(symbol=SYMBOL, interval=INTERVAL, limit=LIMIT):
         df[col] = df[col].astype(float)
 
     return df
-
 
 def atr(df, length):
     high = df["high"]
